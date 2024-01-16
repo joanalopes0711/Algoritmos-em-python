@@ -1,0 +1,164 @@
+#Funções auxiliares:
+
+def formatar(x):
+    """
+    Formata um valor para impressão em uma matriz.
+
+    Parâmetros:
+    x: int or str - O valor a ser formatado.
+
+    Retorna:
+    str - Valor formatado, alinhado à direita e preenchido com espaços.
+    """
+    # Se o valor for um número inteiro, formata como inteiro alinhado à direita com um mínimo de 3 dígitos.
+    if type(x) is int:
+        return f"{x:>3d}"
+    # Se o valor for uma string, formata como string alinhada à direita com um mínimo de 3 caracteres.
+    else:
+        return f"{x:>3}"
+
+def print_matrix(S1, S2, M):
+    """
+    Imprime uma matriz formatada. Pode ser útil se quisermos analisar a matriz.
+
+    Parâmetros:
+    S1: list - Lista de caracteres para rótulos de coluna.
+    S2: list - Lista de caracteres para rótulos de linha.
+    M: list of list - Matriz a ser impressa.
+
+    Retorna:
+    None
+    """
+    # Obtém a largura dos rótulos de coluna
+    col_width = max(len(str(x)) for x in S1)
+
+    # Imprime os rótulos de coluna
+    print(" " * (col_width + 2) + " ".join(formatar(x) for x in S1))
+
+    # Imprime as linhas da matriz com rótulos de linha
+    for x2, linha in zip(S2, M):
+        # Imprime os rótulos de linha formatados à esquerda e preenchidos com espaços, seguidos pelos valores da linha formatados.
+        print("{:<{}} {}".format(x2, col_width + 1, ' '.join(map(formatar, linha))))
+
+    # Adiciona uma linha em branco após a impressão da matriz
+    print()
+
+    
+def score_subst(x1, x2, g):
+    """
+    Calcula a pontuação de substituição entre dois caracteres.
+
+    Parâmetros:
+    x1: str - Primeiro caracter
+    x2: str - Segundo caracter
+    g: int - Penalidade por gap (espaço) na substituição
+
+    Retorna:
+    int - Pontuação da substituição entre os caracteres.
+    """
+
+    # Verifica se há um gap (espaço) em pelo menos um dos caracteres
+    if '-' in x1 + x2:
+        return g  # Retorna a penalidade por gap
+
+    # Verifica se os caracteres fazem match, em caso afirmativo valor= 2 (exemplo)
+    if x1 == x2:
+        return 2  
+
+    # Caso contrário, retorna a penalidade por mismatch valor=-1 (exemplo)
+    return -1
+
+
+#Algoritmo:
+
+def smith_waterman(S1, S2, gap_penalty, score_subst):
+    """
+    Algoritmo de Smith-Waterman para calcular o alinhamento local de duas sequências.
+
+    Parâmetros:
+    S1: str - Primeira sequência
+    S2: str - Segunda sequência
+    gap_penalty: int - Penalidade por espaçamento (gap)
+    score_subst: função auxiliar - Função que recebe dois caracteres e retorna o score de substituição entre eles
+
+    Retorna:
+    Tuple[int, str] - Pontuação do alinhamento ótimo e a sequência alinhada
+    """
+
+    ncols = len(S1) + 1
+    nlins = len(S2) + 1
+
+    # Inicializa as matrizes de pontuações e de trace
+    scores = [[0 for _ in range(ncols)] for _ in range(nlins)]
+    trace = [[0 for _ in range(ncols)] for _ in range(nlins)]
+
+    # Preenche a matriz de pontuações e de trace, começando da primeira célula
+    for L in range(1, nlins):
+        for C in range(1, ncols):
+            diag = scores[L - 1][C - 1] + score_subst(S1[C - 1], S2[L - 1], gap_penalty)
+            left = scores[L][C - 1] + gap_penalty
+            up = scores[L - 1][C] + gap_penalty
+
+            # Lista de escolhas e direções correspondentes
+            choices = [diag, left, up, 0]
+            directions = "DECZ"
+
+            # Encontra o máximo valor e a direção correspondente
+            value = max(choices)
+            trace[L][C] = directions[choices.index(value)]
+            # Substitui valores negativos por zero
+            scores[L][C] = max(0, value)
+
+    # Encontra a posição do valor máximo na matriz
+    max_value = max(map(max, scores))
+    max_pos = [(i, j) for i, row in enumerate(scores) for j, val in enumerate(row) if val == max_value][0]
+    
+    #Se quisermos visualizar as matrizes (de score e de trace)
+    print_matrix(S1, S2, scores)
+    print_matrix(S1, S2, trace)
+    
+
+    # Retorna a pontuação total e a sequência alinhada com base na posição do valor máximo
+    return max_value, reconstruct_alignment(S1, S2, trace, max_pos)
+
+
+def reconstruct_alignment(S1, S2, trace, max_pos):
+    """
+    Reconstrói a sequência alinhada a partir da matriz de rastreamento.
+
+    Parâmetros:
+    S1: str - Primeira sequência
+    S2: str - Segunda sequência
+    trace: list - Matriz de rastreamento
+    max_pos: tuple - Posição do valor máximo na matriz
+
+    Retorna:
+    Tuple[str, str] - Par de sequências alinhadas
+    """
+
+    aligned_seq1 = ""
+    aligned_seq2 = ""
+    L, C = max_pos
+
+    # Realiza o trace-back até atingir a primeira célula com valor zero (D-diagonal,E-esquerda,C-cima,S-stop)
+    while trace[L][C] != 0:
+        if trace[L][C] == 'D':
+            aligned_seq1 = S1[C - 1] + aligned_seq1
+            aligned_seq2 = S2[L - 1] + aligned_seq2
+            L -= 1
+            C -= 1
+        elif trace[L][C] == 'E':
+            aligned_seq1 = S1[C - 1] + aligned_seq1
+            aligned_seq2 = '-' + aligned_seq2
+            C -= 1
+        elif trace[L][C] == 'C':
+            aligned_seq1 = '-' + aligned_seq1
+            aligned_seq2 = S2[L - 1] + aligned_seq2
+            L -= 1
+        elif trace[L][C] == 'S':
+            break
+
+    # Retorna o par de sequências alinhadas
+    return aligned_seq1, aligned_seq2
+
+
